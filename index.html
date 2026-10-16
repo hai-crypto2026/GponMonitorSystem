@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Hệ thống giám sát monitor gpon - VTVcab NOC & PRTG 10G</title>
+    
+    <!-- Bootstrap 4, FontAwesome & DataTables -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
+    
+    <!-- Chart.js for RRD & PRTG Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --sidebar-bg: #29363d;
+            --sidebar-active: #20a8d8;
+            --sidebar-header: #1e282c;
+            --main-bg: #e4e5e6;
+            --card-header-blue: #3f51b5;
+            --prtg-green: #90c226;
+            --prtg-green-dark: #74a01c;
+            --prtg-bg: #f8fafc;
+        }
+
+        body {
+            background-color: var(--main-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 13px;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Top Header Navbar */
+        .app-header {
+            background-color: #fff;
+            border-bottom: 1px solid #c8ced3;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 1030;
+        }
+
+        .navbar-brand-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #20a8d8;
+            letter-spacing: 0.5px;
+        }
+
+        /* App Layout Container */
+        .app-body {
+            display: flex;
+            margin-top: 55px;
+            min-height: calc(100vh - 55px);
+        }
+
+        /* Left Sidebar (Matching exact VTVcab CoreUI theme) */
+        .sidebar {
+            width: 240px;
+            background-color: var(--sidebar-bg);
+            color: #fff;
+            flex-shrink: 0;
+            position: fixed;
+            top: 55px; bottom: 0; left: 0;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar-title {
+            padding: 12px 15px 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #8c9ba5;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-nav-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 18px;
+            color: #b3c2cc;
+            text-decoration: none;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-nav-item i {
+            margin-right: 12px;
+            font-size: 14px;
+            width: 18px;
+            text-align: center;
+        }
+
+        .sidebar-nav-item:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.05);
+            text-decoration: none;
+        }
+
+        .sidebar-nav-item.active {
+            color: #fff;
+            background-color: #3a4b53;
+            border-left-color: var(--sidebar-active);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            margin-left: 240px;
+            flex-grow: 1;
+            padding: 20px;
+            min-width: 0;
+        }
+
+        /* Main Navigation Tabs on Top of Main Content */
+        .nav-portal-tabs {
+            border-bottom: 2px solid #cbd5e1;
+            margin-bottom: 20px;
+            display: flex;
+            background: #fff;
+            border-radius: 6px 6px 0 0;
+            padding: 6px 12px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .nav-portal-tab {
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .nav-portal-tab:hover {
+            color: #0284c7;
+            text-decoration: none;
+        }
+
+        .nav-portal-tab.active {
+            color: #0284c7;
+            border-bottom-color: #0284c7;
+            background: rgba(2, 132, 199, 0.05);
+            border-radius: 4px 4px 0 0;
+        }
+
+        .nav-portal-tab.prtg-tab-btn.active {
+            color: #16a34a;
+            border-bottom-color: #16a34a;
+            background: rgba(22, 163, 74, 0.06);
+        }
+
+        .card {
+            border: 1px solid #c8ced3;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.08);
+            background: #fff;
+        }
+
+        .card-header-vtv {
+            background-color: var(--card-header-blue);
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 10px 16px;
+            border-radius: 3px 3px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-tra-cuu {
+            background-color: #00bcd4;
+            color: white;
+            font-weight: 700;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 3px;
+        }
+        .btn-tra-cuu:hover {
+            background-color: #0097a7;
+            color: white;
+        }
+
+        /* Switch toggle like CoreUI */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 22px;
+            margin-bottom: 0;
+        }
+        .switch input { display: none; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #4dbd74; }
+        input:checked + .slider.slider-danger { background-color: #f86c6b; }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        /* ==================================================== */
+        /* PRTG NETWORK MONITOR STYLE (Matching Screenshots)   */
+        /* ==================================================== */
+        .prtg-container {
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+
+        .prtg-breadcrumb {
+            background: #e2e8f0;
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #475569;
+            border-bottom: 1px solid #cbd5e1;
+        }
+        .prtg-breadcrumb a { color: #0284c7; text-decoration: none; margin: 0 3px; }
+
+        .prtg-title-bar {
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .prtg-sensor-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prtg-status-banner {
+            background: var(--prtg-green);
+            color: #fff;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .prtg-status-banner.down {
+            background: #ef4444;
+        }
+
+        .prtg-info-strip {
+            display: flex;
+            flex-wrap: wrap;
+            background: #f1f5f9;
+            padding: 8px 18px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 12px;
+            gap: 25px;
+        }
+        .prtg-info-item span:first-child { color: #64748b; margin-right: 4px; }
+        .prtg-info-item span:last-child { font-weight: 600; color: #0f172a; }
+
+        .prtg-nav-tabs {
+            display: flex;
+            background: #e2e8f0;
+            padding: 0 14px;
+            border-bottom: 1px solid #cbd5e1;
+        }
+        .prtg-tab {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        .prtg-tab.active {
+            color: #0284c7;
+            background: #fff;
+            border-bottom-color: #0284c7;
+        }
+
+        .prtg-chart-box {
+            padding: 16px;
+            height: 320px;
+            position: relative;
+        }
+
+        .prtg-legend-bar {
+            padding: 10px 18px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .prtg-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            font-family: Consolas, "Courier New", monospace;
+        }
+        .prtg-table th {
+            background: #e2e8f0;
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #cbd5e1;
+            font-weight: bold;
+            color: #334155;
+        }
+        .prtg-table td {
+            padding: 6px 12px;
+            border: 1px solid #cbd5e1;
+        }
+        .prtg-table tr:nth-child(even) { background: #f8fafc; }
+        .prtg-table .sum-row { background: #f1f5f9; font-weight: bold; }
+
+        /* Dark Theme for Weathermap Card */
+        .card-dark-theme {
+            background: #12161f;
+            color: #e2e8f0;
+            border-color: #2b3548;
+        }
+        .card-dark-theme .card-header-vtv {
+            background: #1b2230;
+            color: #58a6ff;
+            border-bottom: 1px solid #2b3548;
+        }
+        .snmp-table {
+            width: 100%;
+            font-family: Consolas, monospace;
+        }
+        .snmp-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #232c3d;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP NAVBAR -->
+    <header class="app-header">
+        <div>
+            <span class="navbar-brand-title"><i class="fa fa-network-wired"></i> VTVcab - MONITOR GPON & PRTG 10G</span>
+            <span class="badge badge-primary ml-2">Phòng Kỹ thuật - INC</span>
+        </div>
+        <div class="d-flex align-items-center">
+            <span class="badge badge-success mr-3 p-2 font-weight-bold" id="wan-badge">116.104.90.25:8765</span>
+            <span class="badge badge-danger p-2"><i class="fa fa-user-shield"></i> Admin: Đặng Thế Hải</span>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <!-- LEFT SIDEBAR -->
+        <nav class="sidebar">
+            <div class="sidebar-title">GIÁM SÁT TÍN HIỆU</div>
+            <a class="sidebar-nav-item" onclick="alert('Quản lý cảnh báo')">
+                <i class="fa fa-bell"></i> Quản lý cảnh báo
+            </a>
+            <a class="sidebar-nav-item" id="menu-olt" onclick="switchView('congcuolt')">
+                <i class="fa fa-tachometer-alt"></i> Công cụ OLT
+            </a>
+            <a class="sidebar-nav-item" id="menu-onu" onclick="switchView('congcuonu')">
+                <i class="fa fa-mobile-alt"></i> Công cụ ONU
+            </a>
+
+            <div class="sidebar-title">QUẢN LÝ HỆ THỐNG</div>
+            <a class="sidebar-nav-item active" id="menu-prtg" onclick="switchView('prtg10g')">
+                <i class="fa fa-signal text-success"></i> Băng thông 10G (PRTG)
+            </a>
+            <a class="sidebar-nav-item" id="menu-adminband" onclick="switchView('adminbandwidth')">
+                <i class="fa fa-chart-line text-warning"></i> Giám sát OLT & Weathermap
+            </a>
+            <a class="sidebar-nav-item" onclick="alert('Upload Firmware OLT')">
+                <i class="fa fa-cloud-upload-alt"></i> Upload FW OLT
+            </a>
+            <a class="sidebar-nav-item" onclick="alert('Kích hoạt Internet DN')">
+                <i class="fa fa-tasks"></i> Kích hoạt Internet DN
+            </a>
+
+            <div class="sidebar-title">BÁO CÁO THỐNG KÊ</div>
+            <a class="sidebar-nav-item" onclick="alert('Mở báo cáo thống kê')">
+                <i class="fa fa-chart-bar"></i> Báo cáo thống kê
+            </a>
+
+            <div class="sidebar-title">TIỆN ÍCH CÁ NHÂN</div>
+            <a class="sidebar-nav-item" onclick="alert('Tải ứng dụng Mcab Android')">
+                <i class="fab fa-android text-success"></i> Mcab Android
+            </a>
+            <a class="sidebar-nav-item" onclick="alert('Tải ứng dụng Mcab iOS')">
+                <i class="fab fa-apple text-light"></i> Mcab IOS
+            </a>
+            <a class="sidebar-nav-item">
+                <i class="fa fa-user-circle text-danger"></i> Đặng Thế Hải
+            </a>
+            <a class="sidebar-nav-item" onclick="alert('Đã đăng xuất phiên làm việc')">
+                <i class="fa fa-sign-out-alt text-warning"></i> Đăng xuất
+            </a>
+        </nav>
+
+        <!-- MAIN VIEW CONTAINER -->
+        <main class="main-content">
+
+            <!-- ==================================================== -->
+            <!-- HỆ THỐNG TAB CHÍNH (CÓ TAB RIÊNG CHO PRTG 10G)       -->
+            <!-- ==================================================== -->
+            <div class="nav-portal-tabs">
+                <a class="nav-portal-tab prtg-tab-btn active" id="tab-btn-prtg" onclick="switchView('prtg10g')">
+                    <i class="fa fa-chart-area text-success"></i> BĂNG THÔNG UPLINK 10G (PRTG MONITOR)
+                </a>
+                <a class="nav-portal-tab" id="tab-btn-olt" onclick="switchView('congcuolt')">
+                    <i class="fa fa-tachometer-alt text-primary"></i> CÔNG CỤ OLT
+                </a>
+                <a class="nav-portal-tab" id="tab-btn-onu" onclick="switchView('congcuonu')">
+                    <i class="fa fa-mobile-alt text-info"></i> CÔNG CỤ ONU
+                </a>
+                <a class="nav-portal-tab" id="tab-btn-adminband" onclick="switchView('adminbandwidth')">
+                    <i class="fa fa-project-diagram text-warning"></i> WEATHERMAP &amp; ADMIN RRDTOOL
+                </a>
+            </div>
+
+            <!-- ==================================================== -->
+            <!-- TAB RIÊNG 1: PRTG 10G NETWORK MONITOR                -->
+            <!-- ==================================================== -->
+            <div id="view-prtg">
+                <div class="prtg-container mb-4">
+                    <!-- Breadcrumbs (Matching PRTG) -->
+                    <div class="prtg-breadcrumb">
+                        <i class="fa fa-home"></i> 
+                        <a>Devices</a> &gt; 
+                        <a>Local Probe</a> &gt; 
+                        <a>MONITOR_GPON</a> &gt; 
+                        <a>GPON_MIEN NAM</a> &gt; 
+                        <a>CN DONG NAI</a> &gt; 
+                        <a>TP. BIEN HOA</a> &gt; 
+                        <a id="prtg-device-link">BIH.OLT.27</a> &gt; 
+                        <b id="prtg-sensor-link">(285279233) xgei-1/4/1 Traffic 10 GBit/s</b>
+                    </div>
+
+                    <!-- Sensor Header & Quick Switcher -->
+                    <div class="prtg-title-bar">
+                        <div class="prtg-sensor-name">
+                            <span class="badge badge-success p-1"><i class="fa fa-check"></i></span>
+                            <span id="prtg-title">Sensor (285279233) xgei-1/4/1 Traffic 10 GBit/s</span>
+                            <span style="font-size: 14px; color: #eab308;">★★★★★</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <label class="mr-2 mb-0 font-weight-bold text-muted">Chọn Sensor 10G:</label>
+                            <select class="form-control form-control-sm font-weight-bold text-primary" id="selectPrtgSensor" onchange="changePrtgSensor(this.value);" style="width: 420px;">
+                                <option value="285279233" selected>(285279233) xgei-1/4/1 Traffic 10 GBit/s [BIH.OLT.27 - Hóa An]</option>
+                                <option value="900003">(900003) XE0/3 Link1 connect nx3000 Traffic 10 GBit/s [BIH.OLT.05]</option>
+                                <option value="900004">(900004) XE0/4 Link2 connect nx3000 Traffic 10 GBit/s [BIH.OLT.05]</option>
+                                <option value="900002">(900002) XE0/2 [Downlink][Xe0/1][BIH.OLT.19] Traffic 10 GBit/s</option>
+                                <option value="device_bih19">Device BIH.OLT.019 (Long Bình Tân) - Bảng Sensor & Cảnh báo Down</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Sensor Sub-Tab Bar -->
+                    <div class="prtg-nav-tabs">
+                        <div class="prtg-tab" onclick="setPrtgRange('overview')">Overview</div>
+                        <div class="prtg-tab active" id="tab-live" onclick="setPrtgRange('live')">Live Data</div>
+                        <div class="prtg-tab" id="tab-2days" onclick="setPrtgRange('2days')">2 days</div>
+                        <div class="prtg-tab" onclick="setPrtgRange('30days')">30 days</div>
+                        <div class="prtg-tab" onclick="setPrtgRange('365days')">365 days</div>
+                        <div class="prtg-tab" onclick="setPrtgRange('historic')">Historic Data</div>
+                        <div class="prtg-tab" onclick="setPrtgRange('log')">Log</div>
+                    </div>
+
+                    <!-- Green Status Banner -->
+                    <div class="prtg-status-banner" id="prtg-status-bar">
+                        Last Message: OK
+                    </div>
+
+                    <!-- Quick Info Metrics -->
+                    <div class="prtg-info-strip">
+                        <div class="prtg-info-item"><span>Last Scan:</span> <span id="prtg-last-scan">18 s</span></div>
+                        <div class="prtg-info-item"><span>Last Up:</span> <span id="prtg-last-up">18 s</span></div>
+                        <div class="prtg-info-item"><span>Last Down:</span> <span id="prtg-last-down">34 m 3 s</span></div>
+                        <div class="prtg-info-item"><span>Uptime:</span> <span id="prtg-uptime" style="color: #16a34a;">99.9455%</span></div>
+                        <div class="prtg-info-item"><span>Downtime:</span> <span id="prtg-downtime">0.0545%</span></div>
+                        <div class="prtg-info-item"><span>Coverage:</span> <span>100%</span></div>
+                        <div class="prtg-info-item"><span>Sensor Type:</span> <span>SNMP Traffic 64bit</span></div>
+                    </div>
+
+                    <!-- CHART AREA -->
+                    <div id="prtg-chart-section">
+                        <div class="prtg-chart-box">
+                            <canvas id="prtgCanvas"></canvas>
+                        </div>
+                        <div class="prtg-legend-bar">
+                            <div class="d-flex align-items-center">
+                                <label class="mr-3 mb-0" style="color: #dc2626;"><input type="checkbox" checked id="chk-downtime"> Downtime (%)</label>
+                                <label class="mr-3 mb-0" style="color: #06b6d4;"><input type="checkbox" checked id="chk-total"> Traffic Total (kbit/s)</label>
+                                <label class="mr-3 mb-0" style="color: #0284c7;"><input type="checkbox" checked id="chk-in"> Traffic In (kbit/s)</label>
+                                <label class="mr-3 mb-0" style="color: #e11d48;"><input type="checkbox" checked id="chk-out"> Traffic Out (kbit/s)</label>
+                            </div>
+                            <div>
+                                <span class="badge badge-light border">Max: <strong id="prtg-max-kbit">81,849 kbit/s</strong></span>
+                                <span class="badge badge-light border ml-1">Min: <strong id="prtg-min-kbit">42 kbit/s</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- LIVE TELEMETRY SPEED & VOLUME TABLE (Matching Image 5) -->
+                        <div class="p-3" id="prtg-table-wrapper">
+                            <h6 class="font-weight-bold text-muted mb-2"><i class="fa fa-table"></i> BẢNG DỮ LIỆU TỐC ĐỘ &amp; DUNG LƯỢNG (LIVE TELEMETRY)</h6>
+                            <div class="table-responsive">
+                                <table class="prtg-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date Time</th>
+                                            <th>Traffic Total (volume)</th>
+                                            <th>Traffic Total (speed)</th>
+                                            <th>Traffic In (volume)</th>
+                                            <th>Traffic In (speed)</th>
+                                        </tr>
+                                        <tr class="sum-row">
+                                            <td>Sums (of 33 values)</td>
+                                            <td id="prtg-sum-tot-vol">1,620,433 KByte</td>
+                                            <td>-</td>
+                                            <td id="prtg-sum-in-vol">1,458,295 KByte</td>
+                                            <td>-</td>
+                                        </tr>
+                                        <tr class="sum-row">
+                                            <td>Averages (of 33 values)</td>
+                                            <td id="prtg-avg-tot-vol">49,104 KByte</td>
+                                            <td id="prtg-avg-tot-spd">6,705 kbit/s</td>
+                                            <td id="prtg-avg-in-vol">44,191 KByte</td>
+                                            <td>-</td>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="prtg-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DEVICE OVERVIEW SECTION (Image 4: BIH.OLT.019 Alarms) -->
+                    <div id="prtg-device-section" style="display: none;" class="p-3">
+                        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5><b>Device BIH.OLT.019 (Long Bình Tân)</b></h5>
+                                <span>DNS/IP: <b>172.20.160.21</b> | Dependency: Parent | Interval: every 60 seconds</span>
+                            </div>
+                            <span class="badge badge-danger p-2 font-weight-bold" style="font-size: 14px;">!! 2 Sensors Down</span>
+                        </div>
+                        <table class="table table-bordered table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th width="40">Pos</th>
+                                    <th>Sensor</th>
+                                    <th>Status</th>
+                                    <th>Message</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="table-danger">
+                                    <td>1.</td>
+                                    <td><i class="fa fa-exclamation-triangle text-danger"></i> <b>Ping</b></td>
+                                    <td><span class="badge badge-danger">Down</span></td>
+                                    <td>Destination host unreachable (ICMP error # 11003)</td>
+                                    <td>★★★☆☆</td>
+                                </tr>
+                                <tr class="table-danger">
+                                    <td>2.</td>
+                                    <td><i class="fa fa-exclamation-triangle text-danger"></i> <b>(900001) XE0/1 XE0/1Traffic 10 GBit/s</b></td>
+                                    <td><span class="badge badge-danger">Down</span></td>
+                                    <td>No response (check: firewalls, routing, snmp settings of device, IPs, SNMP version, community, passwords etc) (SNMP error # -2003)</td>
+                                    <td>★★★☆☆</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================================================== -->
+            <!-- TAB 2: CÔNG CỤ OLT (views/quanlyolt.php)             -->
+            <!-- ==================================================== -->
+            <div id="view-congcuolt" style="display: none;">
+                <div class="card">
+                    <div class="card-header-vtv">
+                        <i class="fa fa-search"></i> <b>TÌM KIẾM</b>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-end">
+                            <div class="col-md-3">
+                                <label class="font-weight-bold">Tên tỉnh</label>
+                                <select class="form-control" id="tentinh">
+                                    <option value="Đồng Nai" selected>Đồng Nai</option>
+                                    <option value="Hồ Chí Minh">Hồ Chí Minh</option>
+                                    <option value="Bình Dương">Bình Dương</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="font-weight-bold">Mã OLT</label>
+                                <select class="form-control" id="maolt">
+                                    <option value="BIH.OLT.01" selected>BIH.OLT.01</option>
+                                    <option value="BIH.OLT.02">BIH.OLT.02</option>
+                                    <option value="BIH.OLT.03">BIH.OLT.03</option>
+                                    <option value="BIH.OLT.04">BIH.OLT.04</option>
+                                    <option value="BIH.OLT.05">BIH.OLT.05</option>
+                                    <option value="BIH.OLT.06">BIH.OLT.06</option>
+                                    <option value="BIH.OLT.27">BIH.OLT.27</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-tra-cuu" onclick="loadPortOlt();">
+                                    <i class="fa fa-search"></i> TRA CỨU
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-vtv">
+                        <i class="fa fa-address-book"></i> <b>THỐNG KÊ THÔNG TIN OLT</b>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped table-hover nowrap" id="tableOlt" width="100%">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th width="140">Công cụ</th>
+                                        <th>Port Pon</th>
+                                        <th>Hoạt động</th>
+                                        <th>Không hoạt động</th>
+                                        <th>Tổng</th>
+                                        <th>Type OLT</th>
+                                        <th>Models</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================================================== -->
+            <!-- TAB 3: CÔNG CỤ ONU (views/quanlyonu.php)             -->
+            <!-- ==================================================== -->
+            <div id="view-congcuonu" style="display: none;">
+                <div class="card">
+                    <div class="card-header-vtv">
+                        <i class="fa fa-filter"></i> <b>TÌM KIẾM ONU TRÊN TOÀN MẠNG</b>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-end">
+                            <div class="col-md-3">
+                                <label class="font-weight-bold">Lỗi tín hiệu (Rx &lt; -26 dBm)</label>
+                                <div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="loitinhieu_dasan">
+                                        <span class="slider slider-danger"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="font-weight-bold">Trạng thái (Active)</label>
+                                <div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="trangthai">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="font-weight-bold">Mã ONU (Serial, Địa chỉ, hoặc để trống)</label>
+                                <input type="text" class="form-control" id="maonu_1" placeholder="VD: ZTEGC, ALL">
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-tra-cuu btn-block" onclick="searchOnu();">
+                                    <i class="fa fa-search"></i> TRA CỨU ONU
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-vtv">
+                        <i class="fa fa-list"></i> <b>DANH SÁCH THÔNG TIN ONU CHI TIẾT</b>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped table-hover nowrap" id="tableOnu" width="100%">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>Công Cụ</th>
+                                        <th>Mã ONU</th>
+                                        <th>Trạng thái</th>
+                                        <th>Rx(1490)</th>
+                                        <th>Rx(1310)</th>
+                                        <th>Chi nhánh</th>
+                                        <th>Địa chỉ</th>
+                                        <th>Mode</th>
+                                        <th>Profile</th>
+                                        <th>Firmware</th>
+                                        <th>Deactive Reason</th>
+                                        <th>Inactive Time</th>
+                                        <th>Mã OLT</th>
+                                        <th>Port Pon</th>
+                                        <th>ONU ID</th>
+                                        <th>Model</th>
+                                        <th>Khoảng cách</th>
+                                        <th>Thời gian</th>
+                                        <th>Type OLT</th>
+                                        <th>IP OLT</th>
+                                        <th>Model Olt</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================================================== -->
+            <!-- TAB 4: GIÁM SÁT OLT & BĂNG THÔNG ADMIN (WEATHERMAP)  -->
+            <!-- ==================================================== -->
+            <div id="view-adminbandwidth" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card card-dark-theme h-100">
+                            <div class="card-header-vtv d-flex justify-content-between align-items-center">
+                                <span>📡 THÔNG TIN OLT (SNMP V2c)</span>
+                                <span class="badge badge-success">ONLINE</span>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="text-primary font-weight-bold mb-3">OLT24.34.ZTE.ThongNhat (172.19.117.34)</h5>
+                                <table class="snmp-table">
+                                    <tr>
+                                        <td class="text-muted" width="140">System:</td>
+                                        <td class="text-success font-weight-bold">ZXA10 C620, ZTE ZXA10 Software Version: V2.0.10</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">Uptime:</td>
+                                        <td>89109 (0 days, 0 hours, 14 minutes)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">Hostname:</td>
+                                        <td>BIH24</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">IP Address:</td>
+                                        <td>172.19.117.34</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">Uplink Port:</td>
+                                        <td class="text-info font-weight-bold">Ethernet1/31 (10G SFP+)</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card card-dark-theme h-100">
+                            <div class="card-header-vtv">
+                                🗺️ NETWORK WEATHERMAP (SWcore ➔ OLT Links)
+                            </div>
+                            <div class="card-body p-1" style="background: #090d13;">
+                                <svg viewBox="0 0 680 260" style="width: 100%; height: 260px;">
+                                    <rect x="300" y="110" width="80" height="35" rx="5" fill="#1f6feb" stroke="#58a6ff" stroke-width="2"/>
+                                    <text x="340" y="132" fill="#fff" font-size="12" font-weight="bold" text-anchor="middle">SWcore</text>
+
+                                    <line x1="300" y1="110" x2="130" y2="40" stroke="#388bfd" stroke-width="3"/>
+                                    <text x="180" y="70" fill="#58a6ff" font-size="10" font-weight="bold">1.65G</text>
+                                    <rect x="70" y="25" width="90" height="25" rx="4" fill="#21262d" stroke="#30363d"/>
+                                    <text x="115" y="42" fill="#e6edf3" font-size="11" text-anchor="middle">OLT01HoNai</text>
+
+                                    <line x1="340" y1="110" x2="340" y2="45" stroke="#8957e5" stroke-width="4"/>
+                                    <text x="355" y="75" fill="#d2a8ff" font-size="10" font-weight="bold">2.82G</text>
+                                    <rect x="290" y="20" width="100" height="25" rx="4" fill="#21262d" stroke="#30363d"/>
+                                    <text x="340" y="37" fill="#e6edf3" font-size="11" text-anchor="middle">OLT03TrangDai</text>
+
+                                    <line x1="300" y1="145" x2="160" y2="210" stroke="#2ea043" stroke-width="3"/>
+                                    <text x="190" y="175" fill="#7ee787" font-size="10" font-weight="bold">1.35G</text>
+                                    <rect x="80" y="200" width="115" height="25" rx="4" fill="#238636" stroke="#2ea043"/>
+                                    <text x="137" y="217" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">ThongNhatOLT24</text>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+
+    <script>
+        document.getElementById('wan-badge').innerText = window.location.host || '116.104.90.25:8765';
+
+        let currentSensorId = "285279233";
+        let currentPrtgRange = "live";
+
+        // Main Tab and Sidebar Synchronized Switcher
+        function switchView(viewName) {
+            // Remove active classes
+            $('.sidebar-nav-item').removeClass('active');
+            $('.nav-portal-tab').removeClass('active');
+            $('#view-congcuolt, #view-congcuonu, #view-adminbandwidth, #view-prtg').hide();
+
+            if (viewName === 'prtg10g') {
+                $('#menu-prtg').addClass('active');
+                $('#tab-btn-prtg').addClass('active');
+                $('#view-prtg').show();
+                loadPrtgTelemetry();
+            } else if (viewName === 'congcuolt') {
+                $('#menu-olt').addClass('active');
+                $('#tab-btn-olt').addClass('active');
+                $('#view-congcuolt').show();
+                loadPortOlt();
+            } else if (viewName === 'congcuonu') {
+                $('#menu-onu').addClass('active');
+                $('#tab-btn-onu').addClass('active');
+                $('#view-congcuonu').show();
+                searchOnu();
+            } else if (viewName === 'adminbandwidth') {
+                $('#menu-adminband').addClass('active');
+                $('#tab-btn-adminband').addClass('active');
+                $('#view-adminbandwidth').show();
+            }
+        }
+
+        // ==========================================
+        // PRTG 10G TELEMETRY & CHART LOGIC
+        // ==========================================
+        const prtgCtx = document.getElementById('prtgCanvas').getContext('2d');
+        const prtgChart = new Chart(prtgCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Traffic Total',
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(165, 243, 252, 0.45)',
+                        borderWidth: 1.5,
+                        fill: true,
+                        data: [],
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Traffic In',
+                        borderColor: '#0369a1',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        fill: false,
+                        data: [],
+                        pointRadius: 2
+                    },
+                    {
+                        label: 'Traffic Out',
+                        borderColor: '#f43f5e',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        fill: false,
+                        data: [],
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Downtime',
+                        borderColor: '#dc2626',
+                        borderDash: [4, 4],
+                        borderWidth: 2,
+                        backgroundColor: 'transparent',
+                        fill: false,
+                        data: [],
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(0, 0, 0, 0.06)' },
+                        ticks: { color: '#64748b', maxTicksLimit: 14 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(0, 0, 0, 0.06)' },
+                        ticks: {
+                            color: '#64748b',
+                            callback: function(val) {
+                                if (val >= 1e6) return (val / 1e6).toFixed(1) + ' M';
+                                if (val >= 1e3) return (val / 1e3).toFixed(0) + ' k';
+                                return val;
+                            }
+                        }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function changePrtgSensor(sensorId) {
+            currentSensorId = sensorId;
+            if (sensorId === 'device_bih19') {
+                $('#prtg-chart-section').hide();
+                $('#prtg-device-section').show();
+                $('#prtg-title').text('Device BIH.OLT.019 (Long Bình Tân)');
+                $('#prtg-status-bar').addClass('down').text('Warning: 2 Sensors Down');
+            } else {
+                $('#prtg-device-section').hide();
+                $('#prtg-chart-section').show();
+                $('#prtg-status-bar').removeClass('down').text('Last Message: OK');
+                loadPrtgTelemetry();
+            }
+        }
+
+        function setPrtgRange(range) {
+            currentPrtgRange = range;
+            $('.prtg-tab').removeClass('active');
+            if (range === 'live') $('#tab-live').addClass('active');
+            if (range === '2days') $('#tab-2days').addClass('active');
+            loadPrtgTelemetry();
+        }
+
+        function loadPrtgTelemetry() {
+            if (currentSensorId === 'device_bih19') return;
+
+            $.getJSON(`/api/prtg/sensor_traffic?id=${currentSensorId}&range=${currentPrtgRange}`, function(res) {
+                if (!res) return;
+                const s = res.sensor;
+
+                // Update Header details
+                $('#prtg-device-link').text(s.device);
+                $('#prtg-sensor-link').text(`(${s.id}) ${s.name}`);
+                $('#prtg-title').text(`Sensor (${s.id}) ${s.name}`);
+                $('#prtg-last-scan').text(s.last_scan);
+                $('#prtg-last-up').text(s.last_up);
+                $('#prtg-last-down').text(s.last_down);
+                $('#prtg-uptime').text(s.uptime);
+                $('#prtg-downtime').text(s.downtime);
+                $('#prtg-max-kbit').text(res.max_kbits.toLocaleString() + ' kbit/s');
+                $('#prtg-min-kbit').text(res.min_kbits.toLocaleString() + ' kbit/s');
+
+                // Update Chart
+                prtgChart.data.labels = res.timeline;
+                prtgChart.data.datasets[0].data = res.traffic_total;
+                prtgChart.data.datasets[1].data = res.traffic_in;
+                prtgChart.data.datasets[2].data = res.traffic_out;
+                prtgChart.data.datasets[3].data = res.downtime;
+                prtgChart.update();
+
+                // Update Telemetry Live Table
+                if (res.table_rows && res.table_rows.length > 0) {
+                    $('#prtg-table-wrapper').show();
+                    let html = '';
+                    res.table_rows.forEach(r => {
+                        html += `<tr>
+                            <td>${r.datetime}</td>
+                            <td>${r.tot_vol}</td>
+                            <td>${r.tot_speed}</td>
+                            <td>${r.in_vol}</td>
+                            <td>${r.in_speed}</td>
+                        </tr>`;
+                    });
+                    $('#prtg-table-body').html(html);
+                } else {
+                    $('#prtg-table-wrapper').hide();
+                }
+            });
+        }
+
+        // Checkbox Visibility Toggles
+        $('#chk-downtime').change(function() { prtgChart.data.datasets[3].hidden = !this.checked; prtgChart.update(); });
+        $('#chk-total').change(function() { prtgChart.data.datasets[0].hidden = !this.checked; prtgChart.update(); });
+        $('#chk-in').change(function() { prtgChart.data.datasets[1].hidden = !this.checked; prtgChart.update(); });
+        $('#chk-out').change(function() { prtgChart.data.datasets[2].hidden = !this.checked; prtgChart.update(); });
+
+        // ==========================================
+        // CÔNG CỤ OLT & ONU DATA TABLES
+        // ==========================================
+        let oltTable = $('#tableOlt').DataTable({
+            responsive: false,
+            paging: true,
+            columns: [
+                {
+                    data: null,
+                    render: (data, type, row) => `
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-info" onclick="switchView('congcuonu'); $('#maonu_1').val('${row.PORTPON}'); searchOnu();">
+                                <i class="fa fa-desktop"></i> DS ONU
+                            </button>
+                            <button type="button" class="btn btn-success" onclick="alert('Port ${row.PORTPON} SFP OK (+5.32 dBm)')">
+                                <i class="fa fa-bullseye"></i> Show Port
+                            </button>
+                        </div>`
+                },
+                { data: "PORTPON" },
+                { data: "ACTONU", render: val => `<span class="badge badge-success">${val}</span>` },
+                { data: "INACTONU", render: val => `<span class="badge badge-danger">${val}</span>` },
+                { data: "TOTALONU", render: val => `<strong>${val}</strong>` },
+                { data: "TYPE_OLT" },
+                { data: "MODELS" }
+            ]
+        });
+
+        function loadPortOlt() {
+            let maolt = $('#maolt').val();
+            $.post("api/data/loaddata_olt.php", { maolt: maolt, xn: "loadPortOlt" }, function(res) {
+                oltTable.clear();
+                if (res && res.data) oltTable.rows.add(res.data).draw();
+            }, "json");
+        }
+
+        let onuTable = $('#tableOnu').DataTable({
+            responsive: false,
+            paging: true,
+            columns: [
+                { data: null, defaultContent: "<button class='btn btn-sm btn-primary'>Công Cụ</button>" },
+                { data: "SNONU" },
+                { data: "STATUS_NAME", render: val => val === 'Active' ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Offline</span>' },
+                { data: "RXPOWER", render: val => `<span class="badge badge-success">${val} dBm</span>` },
+                { data: "RXPOWER_1310" },
+                { data: "BRANCH" },
+                { data: "ADDRESS" },
+                { data: "MODE_NAME" },
+                { data: "PROFILEREG" },
+                { data: "FIRMWARE" },
+                { data: "DEACTIVE_NAME" },
+                { data: "INACTIVE_TIME" },
+                { data: "SNOLT" },
+                { data: "PORTPON" },
+                { data: "ONUID" },
+                { data: "MODEL" },
+                { data: "DISTANCE" },
+                { data: "CREATEDATE" },
+                { data: "TYPE_OLT" },
+                { data: "OLTIP" },
+                { data: "MODELS" }
+            ]
+        });
+
+        function searchOnu() {
+            let maonu = $('#maonu_1').val().trim() || 'ALL';
+            $.post("api/data/loaddata_onu.php", { maonu: maonu }, function(res) {
+                onuTable.clear();
+                if (res && res.data) onuTable.rows.add(res.data).draw();
+            }, "json");
+        }
+
+        // Initialize on load directly to the Dedicated PRTG 10G Tab
+        $(document).ready(function() {
+            switchView('prtg10g');
+        });
+    </script>
+</body>
+</html>
