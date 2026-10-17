@@ -374,6 +374,57 @@ MOCK_ONUS = [
 ]
 
 
+def _fmt_bw(bps):
+    if bps >= 1e9:
+        return f"{bps / 1e9:.2f}G"
+    if bps >= 1e6:
+        return f"{bps / 1e6:.2f}M"
+    if bps >= 1e3:
+        return f"{bps / 1e3:.0f}K"
+    return f"{bps:.0f}"
+
+
+# ------------------------------------------------- SNMP bandwidth config
+def _load_snmp_config():
+    cfg = {"enabled": False, "community": "public", "devices": [],
+           "poll_interval": 60, "timeout": 4, "port": 161}
+    try:
+        base = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(base, "config.json"), encoding="utf-8") as f:
+            user = json.load(f).get("snmp", {})
+        cfg.update({k: v for k, v in user.items() if not str(k).startswith("_")})
+    except Exception:
+        pass
+    return cfg
+
+
+SNMP_CONFIG = _load_snmp_config()
+
+try:
+    import snmp_poller
+    _SNMP_OK = True
+except Exception:
+    _SNMP_OK = False
+
+BW_POLLER = None
+
+
+def _mock_bandwidth_links():
+    """Deterministic mock uplink data (used when SNMP is unavailable)."""
+    rng = _seeded_rng("weathermap", time.strftime("%Y-%m-%d %H"))
+    links = []
+    pairs = [("BIH.OLT.02", "xgei-1/4/1", 1.65e9),
+             ("BIH.OLT.03", "xgei-1/4/1", 2.82e9),
+             ("BIH.OLT.04", "xgei-1/4/1", 1.35e9)]
+    for oltid, name, base in pairs:
+        total = base * rng.uniform(0.85, 1.15)
+        links.append({"oltid": oltid, "ip": "", "name": name,
+                      "in_bps": int(total * 0.85), "out_bps": int(total * 0.15),
+                      "in_str": _fmt_bw(total * 0.85), "out_str": _fmt_bw(total * 0.15),
+                      "total_str": _fmt_bw(total)})
+    return links
+
+
 class NOCUnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -590,8 +641,47 @@ Active ONUs           : {act} ONUs
     def do_GET(self):
         parsed = urlparse(self.path)
 
+        # Bandwidth: live uplink data (SNMP) or mock fallback
+        if parsed.path == '/api/bandwidth/uplinks':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            if BW_POLLER is not None:
+                snap = BW_POLLER.snapshot()
+                if snap["links"]:
+                    self.wfile.write(json.dumps(snap).encode('utf-8'))
+                    return
+            res = {"mode": "mock", "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+                   "links": _mock_bandwidth_links(), "errors": {}}
+            self.wfile.write(json.dumps(res).encode('utf-8'))
+            return
+
+        # Bandwidth: discover interfaces via SNMP walk (find uplink ifindex)
+        elif parsed.path == '/api/bandwidth/discover':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            query = parse_qs(parsed.query)
+            ip = query.get('ip', [''])[0]
+            community = query.get('community', [SNMP_CONFIG.get('community', 'public')])[0]
+            if not _SNMP_OK or not ip:
+                self.wfile.write(json.dumps(
+                    {"ok": False, "error": "SNMP unavailable or missing ip"}).encode('utf-8'))
+                return
+            try:
+                rows = snmp_poller.snmp_walk(ip, community, snmp_poller.IF_DESCR,
+                                             timeout=SNMP_CONFIG.get('timeout', 4),
+                                             port=SNMP_CONFIG.get('port', 161))
+                ifs = [{"ifindex": int(r[0].split('.')[-1]), "descr": r[1]} for r in rows]
+                self.wfile.write(json.dumps(
+                    {"ok": True, "ip": ip, "interfaces": ifs}).encode('utf-8'))
+            except Exception as e:
+                self.wfile.write(json.dumps(
+                    {"ok": False, "error": str(e)[:200]}).encode('utf-8'))
+            return
+
         # PRTG API: Get list of sensors
-        if parsed.path == '/api/prtg/sensors':
+        elif parsed.path == '/api/prtg/sensors':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
@@ -764,6 +854,18 @@ if __name__ == '__main__':
     print(f"[*] LAN:     http://192.168.100.71:{PORT}")
     print(f"[*] WAN:     http://116.104.90.25:{PORT}")
     print("=" * 65)
+
+    if _SNMP_OK and SNMP_CONFIG.get("enabled") and SNMP_CONFIG.get("devices"):
+        BW_POLLER = snmp_poller.BandwidthPoller(
+            devices=SNMP_CONFIG["devices"],
+            community=SNMP_CONFIG.get("community", "public"),
+            interval=SNMP_CONFIG.get("poll_interval", 60),
+            timeout=SNMP_CONFIG.get("timeout", 4),
+            port=SNMP_CONFIG.get("port", 161))
+        BW_POLLER.start()
+        print(f"[*] SNMP bandwidth poller started ({len(SNMP_CONFIG['devices'])} devices)")
+    else:
+        print("[*] SNMP bandwidth poller disabled -> mock mode")
 
     try:
         with ThreadingHTTPServer((HOST, PORT), NOCUnifiedHandler) as server:

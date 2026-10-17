@@ -987,8 +987,9 @@
 
                     <div class="col-md-6">
                         <div class="card card-dark-theme h-100">
-                            <div class="card-header-vtv">
-                                🗺️ NETWORK WEATHERMAP (SWcore ➔ OLT Links)
+                            <div class="card-header-vtv d-flex justify-content-between align-items-center">
+                                <span>🗺️ NETWORK WEATHERMAP (SWcore ➔ OLT Links)</span>
+                                <span class="badge badge-secondary" id="bwModeBadge" title="">MOCK</span>
                             </div>
                             <div class="card-body p-1" style="background: #090d13;">
                                 <svg viewBox="0 0 680 260" style="width: 100%; height: 260px;">
@@ -996,17 +997,17 @@
                                     <text x="340" y="132" fill="#fff" font-size="12" font-weight="bold" text-anchor="middle">SWcore</text>
 
                                     <line x1="300" y1="110" x2="130" y2="40" stroke="#388bfd" stroke-width="3"/>
-                                    <text x="180" y="70" fill="#58a6ff" font-size="10" font-weight="bold">1.65G</text>
+                                    <text id="bwlink0" x="180" y="70" fill="#58a6ff" font-size="10" font-weight="bold">1.65G</text>
                                     <rect x="70" y="25" width="90" height="25" rx="4" fill="#21262d" stroke="#30363d"/>
                                     <text x="115" y="42" fill="#e6edf3" font-size="11" text-anchor="middle">OLT01HoNai</text>
 
                                     <line x1="340" y1="110" x2="340" y2="45" stroke="#8957e5" stroke-width="4"/>
-                                    <text x="355" y="75" fill="#d2a8ff" font-size="10" font-weight="bold">2.82G</text>
+                                    <text id="bwlink1" x="355" y="75" fill="#d2a8ff" font-size="10" font-weight="bold">2.82G</text>
                                     <rect x="290" y="20" width="100" height="25" rx="4" fill="#21262d" stroke="#30363d"/>
                                     <text x="340" y="37" fill="#e6edf3" font-size="11" text-anchor="middle">OLT03TrangDai</text>
 
                                     <line x1="300" y1="145" x2="160" y2="210" stroke="#2ea043" stroke-width="3"/>
-                                    <text x="190" y="175" fill="#7ee787" font-size="10" font-weight="bold">1.35G</text>
+                                    <text id="bwlink2" x="190" y="175" fill="#7ee787" font-size="10" font-weight="bold">1.35G</text>
                                     <rect x="80" y="200" width="115" height="25" rx="4" fill="#238636" stroke="#2ea043"/>
                                     <text x="137" y="217" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">ThongNhatOLT24</text>
                                 </svg>
@@ -1566,11 +1567,33 @@
             });
         }
 
-        // Initialize on load directly to the Dedicated PRTG 10G Tab
+        // Weathermap: cập nhật băng thông uplink (SNMP live hoặc mock)
+        function refreshWeathermap() {
+            $.get("api/bandwidth/uplinks", function(res) {
+                if (!res) return;
+                let badge = $('#bwModeBadge');
+                if (res.mode === 'live') {
+                    badge.removeClass('badge-secondary').addClass('badge-success').text('LIVE');
+                    badge.attr('title', 'Số liệu SNMP thật, cập nhật ' + (res.updated || ''));
+                } else {
+                    badge.removeClass('badge-success').addClass('badge-secondary').text('MOCK');
+                    badge.attr('title', 'Số liệu mô phỏng — cấu hình SNMP trong config.json để lấy số liệu thật');
+                }
+                (res.links || []).forEach((l, i) => {
+                    let el = document.getElementById('bwlink' + i);
+                    if (el) {
+                        el.textContent = l.total_str || '-';
+                        el.setAttribute('title', `${l.oltid} ${l.name}: ↓${l.in_str} ↑${l.out_str}`);
+                    }
+                });
+            }, "json");
+        }
         $(document).ready(function() {
             switchView('prtg10g');
             loadProvinces();
             $('#tentinh').change(loadOlts);
+            refreshWeathermap();
+            setInterval(refreshWeathermap, 60000);
 
             // Xác nhận xem lịch sử ONU
             $('#xnxacnhan').click(function() {
