@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap4.min.css">
     
     <!-- Chart.js for RRD & PRTG Graphs -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -618,25 +619,17 @@
                             <div class="col-md-3">
                                 <label class="font-weight-bold">Tên tỉnh</label>
                                 <select class="form-control" id="tentinh">
-                                    <option value="Đồng Nai" selected>Đồng Nai</option>
-                                    <option value="Hồ Chí Minh">Hồ Chí Minh</option>
-                                    <option value="Bình Dương">Bình Dương</option>
+                                    <option value="">Đang tải...</option>
                                 </select>
                             </div>
                             <div class="col-md-3">
                                 <label class="font-weight-bold">Mã OLT</label>
                                 <select class="form-control" id="maolt">
-                                    <option value="BIH.OLT.01" selected>BIH.OLT.01</option>
-                                    <option value="BIH.OLT.02">BIH.OLT.02</option>
-                                    <option value="BIH.OLT.03">BIH.OLT.03</option>
-                                    <option value="BIH.OLT.04">BIH.OLT.04</option>
-                                    <option value="BIH.OLT.05">BIH.OLT.05</option>
-                                    <option value="BIH.OLT.06">BIH.OLT.06</option>
-                                    <option value="BIH.OLT.27">BIH.OLT.27</option>
+                                    <option value="">Đang tải...</option>
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <button type="button" class="btn btn-tra-cuu" onclick="loadPortOlt();">
+                                <button type="button" id="btnTraCuuOlt" class="btn btn-tra-cuu" onclick="loadPortOlt();">
                                     <i class="fa fa-search"></i> TRA CỨU
                                 </button>
                             </div>
@@ -664,6 +657,209 @@
                                 </thead>
                                 <tbody></tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: Danh sách ONU theo Port (danhsachonu) -->
+            <div class="modal fade" id="modalDsOnu" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-xl" style="max-width: 1140px;" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title" id="dsOnuModalTitle"><i class="fa fa-desktop"></i> Danh sách ONU</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped table-hover nowrap" id="tableDsOnu" width="100%">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Mã ONU</th><th>Trạng thái</th><th>Rx Power(1490)</th><th>Rx(1310)</th>
+                                            <th>Chi nhánh</th><th>Địa chỉ</th><th>Mode</th><th>Profile</th>
+                                            <th>Firmware</th><th>Deactive Reason</th><th>Inactive Time</th>
+                                            <th>Mã OLT</th><th>Port Pon</th><th>ONU ID</th><th>Model</th>
+                                            <th>Khoảng cách</th><th>Thời gian</th><th>Type OLT</th><th>IP OLT</th>
+                                            <th>Model Olt</th><th>Row ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: Chẩn đoán Port (Show Port) -->
+            <div class="modal fade" id="modalShowPort" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title" id="showPortModalTitle"><i class="fa fa-bullseye"></i> Chẩn đoán Port</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" id="showPortBody">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: XEM THÔNG TIN ONU (PPPoE / Tín Hiệu / Thông tin KH) -->
+            <div class="modal fade" id="kiemtratinhieu" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title"><i class="fa fa-info-circle"></i> XEM THÔNG TIN ONU</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" id="ketquatelnet">
+                            Đang tiến hành lấy thông tin..
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: XEM THÔNG TIN ODF (Hộp S2) -->
+            <div class="modal fade" id="kiemtraS1S2" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title"><i class="fa fa-sitemap"></i> XEM THÔNG TIN ODF</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" id="ketquaODF">
+                            Đang tiến hành lấy thông tin..
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: Update Firmware ONU -->
+            <div class="modal fade" id="viewupdate" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title"><i class="fa fa-upload"></i> Update Firmware ONU</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label><b>Mã ONU</b></label>
+                                    <input type="text" id="maonu" class="form-control" value="" readonly>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label><b>Model</b></label>
+                                    <input type="text" id="model" class="form-control" value="" readonly>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><b>Firmware</b></label>
+                                <select class="form-control" name="firmware" id="firmware"></select>
+                            </div>
+                            <div class="form-row align-items-end">
+                                <div class="form-group col-md-6">
+                                    <label><b>Download from FTP</b></label>
+                                    <div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="ftp_check">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <button type="button" class="btn btn-primary btn-block" id="btn_xacnhan">Download FW</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><b>Firmware Version</b></label>
+                                <div id="firmware_version"></div>
+                            </div>
+                            <div class="alert alert-warning py-2"><i>Chú ý: Sau khi download FW thành công mới được Commit OS</i></div>
+                            <div class="form-row align-items-end">
+                                <div class="form-group col-md-6">
+                                    <label><b>Chọn OS</b></label>
+                                    <select class="form-control" name="os_check" id="os_check">
+                                        <option value="os1">Os1</option>
+                                        <option value="os2">Os2</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <button type="button" class="btn btn-primary btn-block" id="btn_commit">Commit OS</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: XEM THÔNG TIN LỊCH SỬ -->
+            <div class="modal fade" id="infohis" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title"><i class="fa fa-history"></i> XEM THÔNG TIN LỊCH SỬ</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" id="onuid">
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label>Ngày bắt đầu</label>
+                                    <input type="date" id="ngaybatdau" class="form-control">
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label>Ngày kết thúc</label>
+                                    <input type="date" id="ngayketthuc" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" id="xnxacnhan">Xác Nhận</button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: LỊCH SỬ THAO TÁC ONU -->
+            <div class="modal fade" id="modalLichSu" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: var(--card-header-blue); color: #fff;">
+                            <h5 class="modal-title" id="lichSuTitle"><i class="fa fa-history"></i> Lịch sử thao tác</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Đóng">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" id="lichSuBody"></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
                         </div>
                     </div>
                 </div>
@@ -740,6 +936,7 @@
                                         <th>Type OLT</th>
                                         <th>IP OLT</th>
                                         <th>Model Olt</th>
+                                        <th>Row ID</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -828,6 +1025,10 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap4.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 
     <script>
         document.getElementById('wan-badge').innerText = window.location.host || '116.104.90.25:8765';
@@ -1013,20 +1214,33 @@
         $('#chk-out').change(function() { prtgChart.data.datasets[2].hidden = !this.checked; prtgChart.update(); });
 
         // ==========================================
-        // CÔNG CỤ OLT & ONU DATA TABLES
+        // CÔNG CỤ OLT & ONU DATA TABLES (port từ views/quanlyolt.php)
         // ==========================================
         let oltTable = $('#tableOlt').DataTable({
             responsive: false,
             paging: true,
+            order: [[1, "asc"]],
+            dom: 'Bfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="fa fa-file-excel"></i> Save as Excel',
+                    title: 'Thong_ke_OLT',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4, 5, 6]
+                    }
+                }
+            ],
             columns: [
                 {
                     data: null,
+                    orderable: false,
                     render: (data, type, row) => `
                         <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-info" onclick="switchView('congcuonu'); $('#maonu_1').val('${row.PORTPON}'); searchOnu();">
+                            <button type="button" class="btn btn-info" onclick="dsOnuTheoPort('${row.PORTPON}')">
                                 <i class="fa fa-desktop"></i> DS ONU
                             </button>
-                            <button type="button" class="btn btn-success" onclick="alert('Port ${row.PORTPON} SFP OK (+5.32 dBm)')">
+                            <button type="button" class="btn btn-success" onclick="showPortInfo('${row.PORTPON}','${row.TYPE_OLT}','${row.MODELS}')">
                                 <i class="fa fa-bullseye"></i> Show Port
                             </button>
                         </div>`
@@ -1040,30 +1254,117 @@
             ]
         });
 
-        function loadPortOlt() {
-            let maolt = $('#maolt').val();
-            $.post("api/data/loaddata_olt.php", { maolt: maolt, xn: "loadPortOlt" }, function(res) {
-                oltTable.clear();
-                if (res && res.data) oltTable.rows.add(res.data).draw();
+        // Nạp danh sách tỉnh (xn=getProvinceOLT) và OLT theo tỉnh (xn=getSingleOLT)
+        function loadProvinces() {
+            $.post("api/data/getDataUnit.php", { xn: "getProvinceOLT" }, function(res) {
+                let sel = $('#tentinh');
+                sel.empty();
+                if (res && res.length) {
+                    res.forEach(p => sel.append(`<option value="${p.PROVINCE}">${p.PROVINCE}</option>`));
+                }
+                loadOlts();
             }, "json");
         }
 
-        let onuTable = $('#tableOnu').DataTable({
-            responsive: false,
-            paging: true,
-            columns: [
-                { data: null, defaultContent: "<button class='btn btn-sm btn-primary'>Công Cụ</button>" },
+        function loadOlts() {
+            let tentinh = $('#tentinh').val();
+            let sel = $('#maolt');
+            sel.empty().append('<option value="">Đang tải...</option>');
+            $.post("api/data/getDataUnit.php", { xn: "getSingleOLT", tentinh: tentinh }, function(res) {
+                sel.empty();
+                if (res && res.length) {
+                    res.forEach(o => sel.append(`<option value="${o.OLTID}">${o.OLTID} — ${o.NAME}</option>`));
+                }
+            }, "json");
+        }
+
+        function loadPortOlt() {
+            let maolt = $('#maolt').val();
+            if (!maolt) return;
+            let btn = $('#btnTraCuuOlt');
+            btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Đang lấy thông tin...');
+            $.post("api/data/loaddata_olt.php", { maolt: maolt, xn: "loadPortOlt" }, function(res) {
+                oltTable.clear();
+                if (res && res.data) oltTable.rows.add(res.data).draw();
+            }, "json").always(function() {
+                btn.prop('disabled', false).html('<i class="fa fa-search"></i> TRA CỨU');
+            });
+        }
+
+        // Thông báo toast (thay toastr.js của bản gốc)
+        function notify(msg, type) {
+            type = type || 'info';
+            let colors = { success: '#28a745', error: '#dc3545', warning: '#ffc107', info: '#17a2b8' };
+            let el = $(`<div style="position:fixed;top:20px;right:20px;z-index:9999;min-width:280px;max-width:420px;padding:12px 16px;border-radius:6px;color:#fff;background:${colors[type] || colors.info};box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:13px;">${msg}</div>`);
+            $('body').append(el);
+            setTimeout(() => el.fadeOut(400, () => el.remove()), 3500);
+        }
+
+        // Badge Rx Power theo ngưỡng bản gốc: xanh (-8,-24], vàng [-24,-26], đỏ còn lại
+        function rxBadge(val) {
+            let v = parseFloat(val);
+            if (isNaN(v)) return '-';
+            let cls = 'badge-success';
+            if (v >= -26 && v <= -24) cls = 'badge-warning';
+            else if (v < -26 || v > -8) cls = 'badge-danger';
+            return `<span class="badge ${cls}">${v} dBm</span>`;
+        }
+
+        function statusBadge(val) {
+            if (val === 'Active' || val === 'Working' || val === 'Enabled') {
+                return `<span class="badge badge-success">${val}</span>`;
+            }
+            return `<span class="badge badge-danger">${val}</span>`;
+        }
+
+        function deactiveBadge(val, type, row) {
+            if (row.STATUS_NAME === 'Active' || row.STATUS_NAME === 'Working') return '-';
+            return `<span class="badge badge-danger">${val}</span>`;
+        }
+
+        function fmtInactive(val) {
+            let s = parseInt(val, 10) || 0;
+            let d = Math.floor(s / 86400); s -= d * 86400;
+            let h = Math.floor(s / 3600); s -= h * 3600;
+            let m = Math.floor(s / 60); s -= m * 60;
+            return `${d}d ${h}h ${m}m ${s}s`;
+        }
+
+        // Cột bảng ONU dùng chung (tab Công cụ ONU + modal DS ONU theo port)
+        // Port từ vtvcab_quanlyonu.js: dropdown Công Cụ 7 mục, ẩn OLTIP/MODELS/ROW_NUM ở bảng chính
+        function onuColumns(withTool) {
+            let cols = [];
+            if (withTool) {
+                cols.push({
+                    data: null,
+                    orderable: false,
+                    render: (data, type, row) => `
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Công Cụ</button>
+                            <div class="dropdown-menu">
+                                <button class="dropdown-item" type="button" onclick="opencheck('${row.OLTIP}','${row.SNONU}','${row.PORTPON}','${row.ONUID}','pppoe','${row.TYPE_OLT}','${row.MODELS}')">PPPoE</button>
+                                <button class="dropdown-item" type="button" onclick="opencheck('${row.OLTIP}','${row.SNONU}','${row.PORTPON}','${row.ONUID}','real','${row.TYPE_OLT}','${row.MODELS}')">Tín Hiệu</button>
+                                <button class="dropdown-item" type="button" onclick="update_infor_customer('${row.SNONU}')">Cập nhật thông tin KH</button>
+                                <button class="dropdown-item" type="button" onclick="loadS1S2('${row.SNONU}')">Hộp S2</button>
+                                <button class="dropdown-item" type="button" onclick="upgradeONU('${row.OLTIP}','${row.SNONU}','${row.PORTPON}','${row.ONUID}','${row.MODEL}','${row.TYPE_OLT}','${row.MODELS}')">Update firmware</button>
+                                <button class="dropdown-item" type="button" onclick="resetONU('${row.OLTIP}','${row.PORTPON}','${row.ONUID}','${row.TYPE_OLT}','${row.MODELS}')">Reset</button>
+                                <button class="dropdown-item" type="button" onclick="openhistory('${row.SNONU}')">Lịch Sử</button>
+                            </div>
+                        </div>`
+                });
+            }
+            cols.push(
                 { data: "SNONU" },
-                { data: "STATUS_NAME", render: val => val === 'Active' ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-danger">Offline</span>' },
-                { data: "RXPOWER", render: val => `<span class="badge badge-success">${val} dBm</span>` },
-                { data: "RXPOWER_1310" },
+                { data: "STATUS_NAME", render: (val) => statusBadge(val) },
+                { data: "RXPOWER", render: (val) => rxBadge(val) },
+                { data: "RXPOWER_1310", render: (val) => rxBadge(val) },
                 { data: "BRANCH" },
                 { data: "ADDRESS" },
                 { data: "MODE_NAME" },
                 { data: "PROFILEREG" },
                 { data: "FIRMWARE" },
-                { data: "DEACTIVE_NAME" },
-                { data: "INACTIVE_TIME" },
+                { data: "DEACTIVE_NAME", render: (val, type, row) => deactiveBadge(val, type, row) },
+                { data: "INACTIVE_TIME", render: (val) => fmtInactive(val) },
                 { data: "SNOLT" },
                 { data: "PORTPON" },
                 { data: "ONUID" },
@@ -1071,22 +1372,265 @@
                 { data: "DISTANCE" },
                 { data: "CREATEDATE" },
                 { data: "TYPE_OLT" },
-                { data: "OLTIP" },
-                { data: "MODELS" }
-            ]
+                { data: "OLTIP", visible: !withTool },
+                { data: "MODELS", visible: !withTool },
+                { data: "ROW_NUM", visible: false }
+            );
+            return cols;
+        }
+
+        // Modal DS ONU theo port (quanlyolt_danhsachonu.php)
+        let dsOnuTable = $('#tableDsOnu').DataTable({
+            responsive: false,
+            paging: true,
+            order: [[2, "asc"]],
+            dom: 'Bfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="fa fa-file-excel"></i> Save as Excel',
+                    title: 'Danh_sach_ONU_theo_port'
+                }
+            ],
+            columns: onuColumns(false)
+        });
+
+        function dsOnuTheoPort(portpon) {
+            let maolt = $('#maolt').val();
+            $('#dsOnuModalTitle').html(`<i class="fa fa-desktop"></i> Danh sách ONU — ${maolt} / Port ${portpon}`);
+            dsOnuTable.clear().draw();
+            $('#modalDsOnu').modal('show');
+            $.post("api/data/loaddata_onu.php", { maolt: maolt, portpon: portpon, xn: "dsOnuTheoPort" }, function(res) {
+                if (res && res.data) dsOnuTable.rows.add(res.data).draw();
+            }, "json");
+        }
+
+        // Show Port: chẩn đoán telnet port (quanlyonlt_dsonu_port.php)
+        function showPortInfo(portpon, typeolt, models) {
+            let maolt = $('#maolt').val();
+            $('#showPortModalTitle').html(`<i class="fa fa-bullseye"></i> Chẩn đoán Port — ${maolt} / ${portpon}`);
+            $('#showPortBody').html('<div class="text-center p-4"><i class="fa fa-spinner fa-spin fa-2x"></i><div class="mt-2">Đang tiến hành lấy thông tin...</div></div>');
+            $('#modalShowPort').modal('show');
+            $.post("api/telnet/getTelnet.php", { maolt: maolt, portpon: portpon, typeolt: typeolt, models: models, xn: "showPort" }, function(html) {
+                $('#showPortBody').html(html);
+            });
+        }
+
+        let onuTable = $('#tableOnu').DataTable({
+            responsive: false,
+            paging: true,
+            order: [[2, "asc"], [4, "asc"]],
+            dom: 'Bfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="fa fa-file-excel"></i> Save as Excel',
+                    title: 'Danh_sach_ONU',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+                    }
+                }
+            ],
+            columns: onuColumns(true)
         });
 
         function searchOnu() {
             let maonu = $('#maonu_1').val().trim() || 'ALL';
-            $.post("api/data/loaddata_onu.php", { maonu: maonu }, function(res) {
+            let loitinhieu = $('#loitinhieu_dasan').is(':checked');
+            let trangthai = $('#trangthai').is(':checked');
+            $.post("api/data/loaddata_onu.php", { maonu: maonu, loitinhieu: loitinhieu, trangthai: trangthai, xn: "searchOnu" }, function(res) {
                 onuTable.clear();
                 if (res && res.data) onuTable.rows.add(res.data).draw();
             }, "json");
         }
 
+        // ==========================================
+        // CHỨC NĂNG ONU port từ vtvcab_quanlyonu.js
+        // (swal/toastr gốc được thay bằng confirm()/notify())
+        // ==========================================
+
+        // Lịch sử ONU
+        function openhistory(maonu) {
+            $('#onuid').val(maonu);
+            let today = new Date().toISOString().slice(0, 10);
+            let past = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+            $('#ngaybatdau').val(past);
+            $('#ngayketthuc').val(today);
+            $('#infohis').modal('show');
+        }
+
+        // Chẩn đoán PPPoE / Tín Hiệu
+        function opencheck(oltIP, maonu, portpon, onuid, tientrinh, type_olt, models) {
+            $('#kiemtratinhieu').modal('show');
+            $('#ketquatelnet').html("Đang tiến hành lấy thông tin..");
+            $.post("api/telnet/getTelnet.php", { oltIP: oltIP, maonu: maonu, portpon: portpon, onuid: onuid, tientrinh: tientrinh, type_olt: type_olt, models: models }, function(msg) {
+                if (msg) $('#ketquatelnet').html(msg);
+            });
+            $.post("api/data/loaddata_themmoilichsu.php", { noidung: `Kiểm tra tín hiệu: Mã OLT=${oltIP};Mã ONU=${maonu};PortPon=${portpon};ONUID=${onuid};Thông tin:${tientrinh}` });
+        }
+
+        // Xem thông tin khách hàng
+        function viewcustomer(snonu) {
+            $('#kiemtratinhieu').modal('show');
+            $('#ketquatelnet').html("Đang tiến hành lấy thông tin..");
+            $.post("api/tools/layttkh.php", { snonu: snonu }, function(msg) {
+                if (msg) $('#ketquatelnet').html(msg);
+            });
+            $.post("api/data/loaddata_themmoilichsu.php", { noidung: `Kiểm tra thông tin khách hàng;Mã ONU=${snonu}` });
+        }
+
+        // Nạp danh sách OS firmware hiện tại của ONU
+        function loadOS(oltIP, portpon, onuid, type_olt, models) {
+            $.post("api/telnet/laydanhsach_firmware_os.php", { oltIP: oltIP, portpon: portpon, onuid: onuid, type_olt: type_olt, models: models }, function(msg) {
+                if (msg) $('#firmware_version').html(msg);
+            });
+        }
+
+        function commitFW(oltIP, portpon, onuid, type_olt, models) {
+            $.post("api/telnet/telnet_commit_firmware_onu.php", { oltIP: oltIP, portpon: portpon, onuid: onuid, type_olt: type_olt, models: models }, function(msg) {
+                console.log(msg);
+            });
+        }
+
+        // Reset ONU (xác nhận trước khi thực hiện)
+        function resetONU(oltIP, portpon, onuid, type_olt, models) {
+            if (String(type_olt).toLowerCase() === "huawei") {
+                notify("Liên hệ NOC - Tel: 024 36893689 nhánh: 2124, 2126, 2127", "warning");
+                return false;
+            }
+            if (!confirm("Reset ONU\nBạn có chắc chắn Reset thiết bị này không?")) return;
+            $('#kiemtratinhieu').modal('show');
+            $('#ketquatelnet').html("Đang tiến hành Reset ONU...");
+            $.post("api/telnet/telnet_reset_onu.php", { oltIP: oltIP, portpon: portpon, onuid: onuid, type_olt: type_olt, models: models, xn: "reset" }, function(msg) {
+                if (msg !== 'FALSE') {
+                    $('#ketquatelnet').html('<div class="alert alert-success">Reset ONU thành công!</div>');
+                    notify("Reset ONU thành công!", "success");
+                } else {
+                    notify("Reset ONU thất bại", "warning");
+                }
+            });
+        }
+
+        // Nạp danh sách firmware theo model
+        function loadFW(type_fw, oltid) {
+            $.post("api/data/getDataUnit.php", { type_fw: type_fw, oltid: oltid, xn: "loadListFW" }, function(res) {
+                let sel = $('select[name=firmware]');
+                sel.empty();
+                if (res && res.length) {
+                    res.forEach(fw => sel.append(`<option value="${fw.NAME_FIRMWARE}">${fw.NAME_FIRMWARE}</option>`));
+                }
+            }, "json");
+        }
+
+        // Update firmware ONU — context lưu trong fwCtx, bind 1 lần duy nhất
+        let fwCtx = {};
+        let fwInterval = null;
+
+        function upgradeONU(oltIP, maonu, portpon, onuid, model, type_olt, models) {
+            // Bản gốc chỉ cho Dasan; bản port cho phép thêm ZTE để demo với dữ liệu mock
+            if (!/dasan|zte/i.test(type_olt || '')) {
+                notify("Liên hệ NOC - Tel: 024 36893689 nhánh: 2124, 2126, 2127", "warning");
+                return false;
+            }
+            fwCtx = { oltIP: oltIP, maonu: maonu, portpon: portpon, onuid: onuid, model: model, type_olt: type_olt, models: models };
+            loadFW(model, oltIP);
+            loadOS(oltIP, portpon, onuid, type_olt, models);
+            $('#maonu').val(maonu);
+            $('#model').val(model);
+            $('#viewupdate').modal('show');
+        }
+
+        function pollFirmwareOS() {
+            $.post("api/telnet/laydanhsach_firmware_os.php", { oltIP: fwCtx.oltIP, portpon: fwCtx.portpon, onuid: fwCtx.onuid, type_olt: fwCtx.type_olt, models: fwCtx.models }, function(msg) {
+                if (msg) $('#firmware_version').html(msg);
+            });
+        }
+
+        // Hộp S2 (thông tin ODF)
+        function loadS1S2(maonu) {
+            $('#kiemtraS1S2').modal('show');
+            $('#ketquaODF').html("Đang tiến hành lấy thông tin..");
+            $.post("api/data/getDataUnit.php", { snonu: maonu, xn: "getODF" }, function(msg) {
+                if (msg) $('#ketquaODF').html(msg);
+            });
+        }
+
+        // Cập nhật thông tin khách hàng
+        function update_infor_customer(snonu) {
+            $.post("api/data/getDataUnit.php", { snonu: snonu, xn: "updateCustomerInfo" }, function(msg) {
+                if (msg === "TRUE") {
+                    notify("Cập nhật thông tin khách hàng thành công!", "success");
+                } else {
+                    notify("Cập nhật thất bại!", "error");
+                }
+            });
+        }
+
         // Initialize on load directly to the Dedicated PRTG 10G Tab
         $(document).ready(function() {
             switchView('prtg10g');
+            loadProvinces();
+            $('#tentinh').change(loadOlts);
+
+            // Xác nhận xem lịch sử ONU
+            $('#xnxacnhan').click(function() {
+                let maonu = $('#onuid').val();
+                let ngaybatdau = $('#ngaybatdau').val();
+                let ngayketthuc = $('#ngayketthuc').val();
+                $('#infohis').modal('hide');
+                $.post("api/data/loaddata_themmoilichsu.php", { noidung: `Xem lịch sử: maonu=${maonu};ngaybatdau=${ngaybatdau};ngayketthuc=${ngayketthuc}` });
+                $('#lichSuTitle').html(`<i class="fa fa-history"></i> Lịch sử thao tác — ${maonu}`);
+                $('#lichSuBody').html('<div class="text-center p-3"><i class="fa fa-spinner fa-spin"></i> Đang tải...</div>');
+                $('#modalLichSu').modal('show');
+                $.post("api/data/loaddata_themmoilichsu.php", { xn: "getHistory", maonu: maonu }, function(res) {
+                    let rows = (res && res.data) ? res.data : [];
+                    if (!rows.length) {
+                        $('#lichSuBody').html('<div class="alert alert-info mb-0">Chưa có lịch sử thao tác cho ONU này.</div>');
+                        return;
+                    }
+                    let html = '<table class="table table-sm table-bordered"><thead><tr><th width="170">Thời gian</th><th>Nội dung</th></tr></thead><tbody>';
+                    rows.forEach(r => { html += `<tr><td>${r.time}</td><td>${r.noidung}</td></tr>`; });
+                    $('#lichSuBody').html(html + '</tbody></table>');
+                }, "json");
+            });
+
+            // Download FW (Update firmware ONU)
+            $('#btn_xacnhan').click(function() {
+                let name_firmware = $('#firmware').val();
+                let ftp_check = $('#ftp_check').is(':checked');
+                let os_check = $('#os_check').val();
+                if (!confirm("Cập nhật Firmware cho ONU\nBạn có chắc chắn cập nhật Firmware này không?")) return;
+                $.post("api/telnet/telnet_update_firmware_onu.php", { oltIP: fwCtx.oltIP, portpon: fwCtx.portpon, onuid: fwCtx.onuid, name: name_firmware, os_check: os_check, xn: ftp_check, type_olt: fwCtx.type_olt, models: fwCtx.models }, function(msg) {
+                    if (msg !== 'FALSE') {
+                        notify("Đang Update Firmware... vui lòng chờ trong giây lát!", "success");
+                        clearInterval(fwInterval);
+                        fwInterval = setInterval(pollFirmwareOS, 15000);
+                    } else {
+                        notify("Update Firmware thất bại", "warning");
+                    }
+                });
+            });
+
+            // Commit OS
+            $('#btn_commit').click(function() {
+                let ftp_check = $('#ftp_check').is(':checked');
+                let os_check = $('#os_check').val();
+                if (!confirm("Commit OS\nBạn có chắc chắn Commit OS này không?")) return;
+                $.post("api/telnet/telnet_commit_firmware_onu.php", { oltIP: fwCtx.oltIP, portpon: fwCtx.portpon, onuid: fwCtx.onuid, os_check: os_check, xn: ftp_check, type_olt: fwCtx.type_olt, models: fwCtx.models }, function(msg) {
+                    if (msg !== "FALSE") {
+                        notify("Commit OS thành công!", "success");
+                        clearInterval(fwInterval);
+                        fwInterval = setInterval(pollFirmwareOS, 15000);
+                    } else {
+                        notify("Commit OS thất bại", "warning");
+                    }
+                });
+            });
+
+            // Dừng polling khi đóng modal firmware
+            $('#viewupdate').on('hide.bs.modal', function() {
+                clearInterval(fwInterval);
+            });
         });
     </script>
 </body>

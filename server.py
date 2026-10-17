@@ -20,6 +20,7 @@ import json
 import time
 import math
 import random
+import hashlib
 import os
 import sys
 from urllib.parse import parse_qs, urlparse
@@ -148,21 +149,180 @@ PRTG_SENSORS = [
     }
 ]
 
+def _seeded_rng(*parts):
+    """Deterministic RNG so mock data is stable between reloads."""
+    h = hashlib.md5(("|".join(str(p) for p in parts)).encode("utf-8")).hexdigest()
+    return random.Random(int(h[:8], 16))
+
+
 def generate_olt_ports(maolt):
+    rng = _seeded_rng("olt_ports", maolt)
+    # OLT type/model lookup (fallback ZTE C620)
+    olt_info = {}
+    for _prov, olts in OLTS_BY_PROVINCE.items():
+        for o in olts:
+            olt_info[o["OLTID"]] = o
+    info = olt_info.get(maolt, {"TYPE": "ZTE", "MODEL": "ZXA10 C620"})
     ports = []
     for slot in range(1, 3):
         for port in range(1, 9):
-            act = random.randint(35, 62)
-            inact = random.randint(1, 7)
+            act = rng.randint(35, 62)
+            inact = rng.randint(1, 7)
             ports.append({
                 "PORTPON": f"1/{slot}/{port}",
                 "ACTONU": act,
                 "INACTONU": inact,
                 "TOTALONU": act + inact,
-                "TYPE_OLT": "ZTE",
-                "MODELS": "ZXA10 C620"
+                "TYPE_OLT": info["TYPE"],
+                "MODELS": info["MODEL"]
             })
     return ports
+
+
+# Reference data pools for mock ONU generation (ported from VTVcab)
+_MOCK_MODELS = ["ZXHN F670L", "ZXHN F6600P", "ZXHN F660", "HG6245D", "HG8145V5", "ZXHN F680"]
+_MOCK_PROFILES = ["HSI_150M_IPTV", "HSI_200M_VIP", "HSI_100M", "HSI_300M_GAME", "HSI_80M"]
+_MOCK_BRANCHES = ["Đồng Nai - Thống Nhất", "Đồng Nai - Biên Hòa", "Đồng Nai - Long Thành",
+                  "Đồng Nai - Trảng Dài", "Đồng Nai - Long Khánh"]
+_MOCK_STREETS = ["Đường 21/4, TT. Dầu Giây", "Ấp Hưng Nghĩa, Xã Hưng Lộc", "KP 3, P. Tân Hiệp",
+                 "Ấp Bình Minh, Xã Bình Minh", "Đường Võ Thị Sáu, P. Thống Nhất",
+                 "KP 5, P. Long Bình Tân", "Ấp Tân Lập, Xã Bàu Hàm"]
+_MOCK_FW = ["V1.1.0P1T1", "V1.1.0P2T2", "V2.0.1P3T1", "V1.0.0P1T5"]
+
+
+def generate_mock_onus(maolt, portpon, count=None):
+    """Generate deterministic mock ONUs for a given OLT port (DS ONU per port)."""
+    rng = _seeded_rng("port_onus", maolt, portpon)
+    olt_info = {}
+    for _prov, olts in OLTS_BY_PROVINCE.items():
+        for o in olts:
+            olt_info[o["OLTID"]] = o
+    info = olt_info.get(maolt, {"TYPE": "ZTE", "MODEL": "ZXA10 C620", "IP": "172.19.117.34"})
+    if count is None:
+        count = rng.randint(8, 16)
+    onus = []
+    for i in range(1, count + 1):
+        sn = "ZTEGC" + "".join(rng.choice("0123456789ABCDEF") for _ in range(8))
+        active = rng.random() > 0.12
+        rx = round(rng.uniform(-27.5, -17.5), 2)
+        model = rng.choice(_MOCK_MODELS)
+        onus.append({
+            "ROW_NUM": i,
+            "SNONU": sn,
+            "STATUS_NAME": "Active" if active else "Offline",
+            "RXPOWER": rx,
+            "RXPOWER_1310": round(rx - rng.uniform(0.3, 1.5), 2),
+            "BRANCH": rng.choice(_MOCK_BRANCHES),
+            "ADDRESS": f"{rng.randint(1, 350)} {rng.choice(_MOCK_STREETS)}",
+            "MODE_NAME": rng.choice(["Route", "Bridge"]),
+            "PROFILEREG": rng.choice(_MOCK_PROFILES),
+            "FIRMWARE": rng.choice(_MOCK_FW),
+            "DEACTIVE_NAME": "-" if active else rng.choice(["LOSi", "DyingGasp", "PowerOff"]),
+            "INACTIVE_TIME": 0 if active else rng.randint(60, 86400),
+            "SNOLT": maolt,
+            "PORTPON": portpon,
+            "ONUID": rng.randint(1, 64),
+            "MODEL": model,
+            "DISTANCE": f"{rng.randint(200, 8500)} m",
+            "CREATEDATE": f"2026-{rng.randint(1, 9):02d}-{rng.randint(1, 28):02d} "
+                          f"{rng.randint(0, 23):02d}:{rng.randint(0, 59):02d}:00",
+            "TYPE_OLT": info["TYPE"],
+            "OLTIP": info["IP"],
+            "MODELS": model
+        })
+    return onus
+
+
+# In-memory operation history log (port of api/data/loaddata_themmoilichsu.php)
+HISTORY_LOG = []
+
+
+def _mock_firmware_list(model):
+    """Deterministic firmware list per ONU model (xn=loadListFW)."""
+    rng = _seeded_rng("fw_list", model or "GENERIC")
+    base = (model or "F670L").replace("ZXHN ", "").replace(" ", "")
+    vers = ["V1.1.0P1T1", "V1.1.0P2T2", "V2.0.1P3T1", "V1.0.0P1T5"]
+    rng.shuffle(vers)
+    return [{"NAME_FIRMWARE": f"{base}_{v}.bin"} for v in vers[:3]]
+
+
+def _mock_odf_info(snonu):
+    """Mock ODF/S2 path info (xn=getODF)."""
+    rng = _seeded_rng("odf", snonu)
+    return f"""
+<pre style="background: #000; color: #7CFC00; padding: 12px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; line-height: 1.5;">
+[ODF / HOP S2] - ONU: {snonu}
+---------------------------------------------------------------------
+Splitter Level 1      : S1-{rng.randint(1, 16):02d} (ODF Trung tam)
+Splitter Level 2      : S2-{rng.randint(1, 8):02d} (Hop cap {rng.randint(1, 48)})
+Port S2               : {rng.randint(1, 16)}
+Suy hao do duoc       : {round(rng.uniform(0.8, 2.4), 2)} dB
+Trang thai hop        : OK
+---------------------------------------------------------------------
+</pre>"""
+
+
+def _mock_customer_info(snonu):
+    """Mock customer info (api/tools/layttkh.php)."""
+    rng = _seeded_rng("customer", snonu)
+    return f"""
+<table class="table table-bordered table-sm" style="font-size: 13px;">
+<tbody>
+<tr><th width="180">Ma ONU</th><td><b>{snonu}</b></td></tr>
+<tr><th>Khach hang</th><td>Nguyen Van {rng.choice(['An', 'Binh', 'Chi', 'Dung', 'Em'])}</td></tr>
+<tr><th>Dia chi lap dat</th><td>{rng.randint(1, 350)} {rng.choice(_MOCK_STREETS)}</td></tr>
+<tr><th>So dien thoai</th><td>09{rng.randint(10000000, 99999999)}</td></tr>
+<tr><th>Goi cuoc</th><td>{rng.choice(_MOCK_PROFILES)}</td></tr>
+<tr><th>Trang thai thue bao</th><td><span class="badge badge-success">Dang hoat dong</span></td></tr>
+</tbody>
+</table>"""
+
+
+def _mock_onu_diagnostics(maonu, portpon, onuid, tientrinh, typeolt):
+    """Mock ONU telnet diagnostics (tientrinh=pppoe | real)."""
+    rng = _seeded_rng("onu_diag", maonu, tientrinh)
+    if tientrinh == "pppoe":
+        user = f"kh{rng.randint(10000, 99999)}@vtvcab"
+        return f"""
+<pre style="background: #000; color: #f8cb00; padding: 12px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; line-height: 1.5;">
+[PPPoE DIAGNOSTICS] - ONU: {maonu} (ID {onuid}, Port {portpon})
+---------------------------------------------------------------------
+PPPoE Session         : Up
+Username              : {user}
+Session ID            : {rng.randint(1000, 9999)}
+Session Uptime        : {rng.randint(1, 72)}h {rng.randint(0, 59)}m
+IP Address            : 14.{rng.randint(160, 190)}.{rng.randint(0, 255)}.{rng.randint(2, 254)}
+Gateway               : 14.160.0.1
+DNS                   : 203.162.4.191 / 203.162.4.190
+---------------------------------------------------------------------
+</pre>"""
+    rx = round(rng.uniform(-27.5, -17.5), 2)
+    tx = round(rng.uniform(-3.0, 2.5), 2)
+    return f"""
+<pre style="background: #000; color: #f8cb00; padding: 12px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; line-height: 1.5;">
+[SIGNAL DIAGNOSTICS] - ONU: {maonu} (ID {onuid}, Port {portpon}, {typeolt})
+---------------------------------------------------------------------
+Rx Power (1490nm)     : {rx} dBm
+Tx Power (1310nm)     : {tx} dBm
+Temperature           : {round(rng.uniform(35.0, 55.0), 1)} C
+Voltage               : {round(rng.uniform(3.2, 3.4), 2)} V
+Distance              : {rng.randint(200, 8500)} m
+ONU Status            : Online
+---------------------------------------------------------------------
+</pre>"""
+
+
+def _mock_firmware_os(maonu_label, onuid):
+    rng = _seeded_rng("fw_os", maonu_label, str(onuid))
+    cur = rng.choice(["V1.1.0P1T1", "V1.1.0P2T2"])
+    return f"""
+<table class="table table-bordered table-sm" style="font-size: 13px;">
+<thead><tr><th>OS</th><th>Firmware Version</th><th>Trang thai</th></tr></thead>
+<tbody>
+<tr><td><b>OS1</b></td><td>{cur}</td><td><span class="badge badge-success">Active</span></td></tr>
+<tr><td><b>OS2</b></td><td>V1.0.0P1T5</td><td><span class="badge badge-secondary">Standby</span></td></tr>
+</tbody>
+</table>"""
 
 MOCK_ONUS = [
     {
@@ -235,6 +395,20 @@ class NOCUnifiedHandler(http.server.SimpleHTTPRequestHandler):
 
         # 1. API: getDataUnit.php
         if 'getDataUnit.php' in parsed.path:
+            if xn == 'getODF':
+                # HTML fragment (not JSON) - inserted into #ketquaODF
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.end_headers()
+                snonu = params.get('snonu', [''])[0]
+                self.wfile.write(_mock_odf_info(snonu).encode('utf-8'))
+                return
+            if xn == 'updateCustomerInfo':
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(b'TRUE')
+                return
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
@@ -246,49 +420,166 @@ class NOCUnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 olts = OLTS_BY_PROVINCE.get(tentinh, OLTS_BY_PROVINCE['Đồng Nai'])
                 self.wfile.write(json.dumps(olts).encode('utf-8'))
                 return
+            elif xn == 'loadListFW':
+                type_fw = params.get('type_fw', [''])[0]
+                self.wfile.write(json.dumps(_mock_firmware_list(type_fw)).encode('utf-8'))
+                return
 
-        # 2. API: loaddata_olt.php
+        # 2. API: loaddata_olt.php  (xn=loadPortOlt)
         elif 'loaddata_olt.php' in parsed.path:
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
             maolt = params.get('maolt', ['BIH.OLT.01'])[0]
+            draw = int(params.get('draw', ['1'])[0] or 1)
             ports = generate_olt_ports(maolt)
-            res = {"draw": 1, "recordsTotal": len(ports), "recordsFiltered": len(ports), "data": ports}
+            res = {"draw": draw, "recordsTotal": len(ports), "recordsFiltered": len(ports), "data": ports}
             self.wfile.write(json.dumps(res).encode('utf-8'))
             return
 
-        # 3. API: loaddata_onu.php
+        # 3. API: loaddata_onu.php  (searchOnu / DS ONU per port)
         elif 'loaddata_onu.php' in parsed.path:
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
             maonu_filter = params.get('maonu', [''])[0].strip().upper()
-            filtered = [onu for onu in MOCK_ONUS if not maonu_filter or maonu_filter == 'ALL' or maonu_filter in onu['SNONU'].upper()]
-            res = {"draw": 1, "recordsTotal": len(MOCK_ONUS), "recordsFiltered": len(filtered), "data": filtered}
+            maolt_filter = params.get('maolt', [''])[0].strip()
+            portpon_filter = params.get('portpon', [''])[0].strip()
+            draw = int(params.get('draw', ['1'])[0] or 1)
+            if portpon_filter:
+                # DS ONU theo port: mock ONU sinh theo (maolt, portpon)
+                onus = generate_mock_onus(maolt_filter or 'BIH.OLT.01', portpon_filter)
+                total = len(onus)
+                if maonu_filter and maonu_filter != 'ALL':
+                    onus = [o for o in onus if maonu_filter in o['SNONU'].upper()
+                            or maonu_filter in o['ADDRESS'].upper()]
+                res = {"draw": draw, "recordsTotal": total, "recordsFiltered": len(onus), "data": onus}
+            else:
+                onus = list(MOCK_ONUS)
+                if maolt_filter:
+                    onus = [o for o in onus if maolt_filter in o['SNOLT']]
+                if maonu_filter and maonu_filter != 'ALL':
+                    onus = [o for o in onus if maonu_filter in o['SNONU'].upper()
+                            or maonu_filter in o['ADDRESS'].upper()]
+                # loitinhieu: Rx Power < -26 dBm ; trangthai: Active
+                if params.get('loitinhieu', [''])[0] == 'true':
+                    onus = [o for o in onus if o['RXPOWER'] < -26]
+                if params.get('trangthai', [''])[0] == 'true':
+                    onus = [o for o in onus if o['STATUS_NAME'] == 'Active']
+                res = {"draw": draw, "recordsTotal": len(MOCK_ONUS), "recordsFiltered": len(onus), "data": onus}
             self.wfile.write(json.dumps(res).encode('utf-8'))
             return
 
-        # 4. API: getTelnet.php
+        # 4. API: getTelnet.php  (Show Port / PPPoE / Signal diagnostics)
         elif 'getTelnet.php' in parsed.path:
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
+            maolt = params.get('maolt', [''])[0]
             olt_ip = params.get('oltIP', ['172.19.117.34'])[0]
             portpon = params.get('portpon', ['1/1/1'])[0]
+            onuid = params.get('onuid', [''])[0]
+            maonu = params.get('maonu', [''])[0]
+            tientrinh = params.get('tientrinh', [''])[0]
+            typeolt = params.get('typeolt', params.get('type_olt', ['ZTE']))[0]
+            models = params.get('models', ['ZXA10 C620'])[0]
+            if tientrinh in ('pppoe', 'real'):
+                self.wfile.write(_mock_onu_diagnostics(maonu, portpon, onuid, tientrinh, typeolt).encode('utf-8'))
+                return
+            rng = _seeded_rng("port_telnet", maolt or olt_ip, portpon)
+            act = rng.randint(35, 62)
+            tx = round(rng.uniform(2.5, 6.5), 2)
+            temp = round(rng.uniform(38.0, 52.0), 1)
+            volt = round(rng.uniform(3.25, 3.40), 2)
             res_html = f"""
-<pre style="background: #000; color: #f8cb00; padding: 12px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; line-height: 1.4;">
-[PORT STATUS: {olt_ip}] - Port: gpon_olt-{portpon} (SFP 10G Uplink)
+<pre style="background: #000; color: #f8cb00; padding: 12px; border-radius: 4px; font-family: Consolas, monospace; font-size: 13px; line-height: 1.5;">
+[PORT DIAGNOSTICS] - OLT: {maolt or olt_ip} ({typeolt} {models})
 ---------------------------------------------------------------------
-Port State              : Up / Enabled
-SFP Module Model        : GPON-OLT-CLASS-C+ (10G SFP+)
-TX Optical Power        : +5.32 dBm
-Supply Voltage          : 3.32 V
-Temperature             : 46.2 C
-Active ONUs             : 48 ONUs
+Port                  : gpon_olt-{portpon} (SFP GPON Class C+)
+Port State            : Up / Enabled
+SFP Module Model      : GPON-OLT-CLASS-C+
+TX Optical Power      : +{tx} dBm
+Supply Voltage        : {volt} V
+Temperature           : {temp} C
+Active ONUs           : {act} ONUs
 ---------------------------------------------------------------------
 </pre>"""
             self.wfile.write(res_html.encode('utf-8'))
+            return
+
+        # 5. API: laydanhsach_firmware_os.php  (firmware OS versions)
+        elif 'laydanhsach_firmware_os.php' in parsed.path:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            onuid = params.get('onuid', [''])[0]
+            olt_ip = params.get('oltIP', [''])[0]
+            self.wfile.write(_mock_firmware_os(olt_ip, onuid).encode('utf-8'))
+            return
+
+        # 6. API: telnet_update_firmware_onu.php  (Download FW)
+        elif 'telnet_update_firmware_onu.php' in parsed.path:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(b'TRUE')
+            return
+
+        # 7. API: telnet_commit_firmware_onu.php  (Commit OS)
+        elif 'telnet_commit_firmware_onu.php' in parsed.path:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(b'TRUE')
+            return
+
+        # 8. API: telnet_reset_onu.php  (xn=reset)
+        elif 'telnet_reset_onu.php' in parsed.path:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            if xn == 'reset':
+                HISTORY_LOG.append({
+                    "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "noidung": "Reset ONU: OLT=%s;PortPon=%s;ONUID=%s" % (
+                        params.get('oltIP', [''])[0], params.get('portpon', [''])[0],
+                        params.get('onuid', [''])[0])
+                })
+                self.wfile.write(b'TRUE')
+            else:
+                self.wfile.write(b'FALSE')
+            return
+
+        # 9. API: layttkh.php  (customer info)
+        elif 'layttkh.php' in parsed.path:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            snonu = params.get('snonu', [''])[0]
+            self.wfile.write(_mock_customer_info(snonu).encode('utf-8'))
+            return
+
+        # 10. API: loaddata_themmoilichsu.php  (operation history log)
+        elif 'loaddata_themmoilichsu.php' in parsed.path:
+            if xn == 'getHistory':
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                maonu = params.get('maonu', [''])[0]
+                entries = [e for e in HISTORY_LOG if not maonu or maonu in e['noidung']]
+                entries = entries[-100:]
+                self.wfile.write(json.dumps({"data": entries}).encode('utf-8'))
+                return
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            noidung = params.get('noidung', [''])[0]
+            if noidung:
+                HISTORY_LOG.append({
+                    "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "noidung": noidung
+                })
+            self.wfile.write(b'TRUE')
             return
 
         self.send_response(200)
