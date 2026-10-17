@@ -80,3 +80,39 @@ python server.py
 4. **Tab Weathermap & Admin RRDtool**:
    - Bản đồ liên kết mạng từ Switch Core (`SWcore`) tới các trạm OLT vệ tinh.
    - Đồ thị chu kỳ lưu lượng 24h đo bằng RRDtool.
+
+---
+
+## 📡 Giám sát băng thông uplink OLT qua SNMP (mới)
+
+Tab Weathermap có thể hiển thị **số liệu thật** thay vì mock, bằng cách poll SNMP trực tiếp tới OLT (chuẩn IF-MIB, dùng được cho ZTE / Huawei / Dasan / mọi thiết bị SNMP).
+
+### Cách bật
+
+1. Server phải chạy **trong mạng nội bộ** tới được các OLT (ping/snmp được tới IP OLT).
+2. Mở file **`config.json`**, sửa:
+   - `community`: SNMP community string của OLT (mặc định `public`)
+   - `devices`: danh sách OLT — mỗi OLT gồm `ip`, `oltid`, và `uplinks` (các cổng uplink cần theo dõi, mỗi cổng có `ifindex` + `name`)
+   - `enabled`: `true`
+3. Chạy lại `server.py`. Góc tab Weathermap sẽ hiện badge **LIVE** (xanh) thay vì **MOCK** (xám), số liệu tự cập nhật mỗi `poll_interval` giây.
+
+### Tìm ifindex của cổng uplink
+
+Mở trên trình duyệt (khi server đang chạy):
+
+```
+http://localhost:8765/api/bandwidth/discover?ip=<IP-OLT>&community=<community>
+```
+
+API trả về danh sách cổng (`ifindex` + `ifDescr`, ví dụ `xgei-1/4/1`), lấy `ifindex` điền vào `config.json`.
+
+### API
+
+- `GET /api/bandwidth/uplinks` — trạng thái băng thông hiện tại: `{"mode": "live"|"mock", "links": [{oltid, name, in_bps, out_bps, total_str, ...}]}`
+- `GET /api/bandwidth/discover?ip=&community=` — liệt kê cổng mạng của thiết bị
+
+### Lưu ý
+
+- Module SNMP (`snmp_poller.py`) viết thuần Python stdlib, không cần cài thêm gì.
+- Khi SNMP không tới được (sai community, OLT không bật SNMP, chạy ngoài mạng nội bộ), hệ thống **tự động dùng số liệu mock** để giao diện không bị trống.
+- Poller chạy nền, tính tốc độ (bps) từ hiệu số counter `ifHCInOctets`/`ifHCOutOctets` giữa 2 lần poll; tự bỏ qua mẫu lỗi khi counter reset.
